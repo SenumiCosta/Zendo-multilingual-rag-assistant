@@ -1,0 +1,12 @@
+[
+  {
+    "question": "What is this document about?",
+    "expected_substring": "REPLACE_WITH_A_PHRASE_FROM_YOUR_PDF",
+    "lang": "en"
+  },
+  {
+    "question": "මෙම ලේඛනය ගැන සාරාංශයක් දෙන්න.",
+    "expected_substring": "REPLACE_WITH_A_SINHALA_PHRASE",
+    "lang": "si"
+  }
+]

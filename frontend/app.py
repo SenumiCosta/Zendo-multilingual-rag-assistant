@@ -16,7 +16,7 @@ import gradio as gr
 import httpx
 
 BACKEND_URL = os.getenv("BACKEND_URL", "http://127.0.0.1:8000")
-TIMEOUT = httpx.Timeout(120.0)
+TIMEOUT = httpx.Timeout(600.0)
 
 
 def upload_pdf(file_obj) -> str:
@@ -34,8 +34,21 @@ def upload_pdf(file_obj) -> str:
     return f"Indexed {data['filename']}: {data['chunks']} chunks."
 
 
-def chat_fn(message: str, history: list[tuple[str, str]]) -> str:
-    payload = {"question": message, "history": history or [], "k": 3}
+def chat_fn(message: str, history) -> str:
+    # Gradio may pass tuples or OpenAI-style dicts depending on version.
+    tuple_history: list[tuple[str, str]] = []
+    if history:
+        if isinstance(history[0], dict):
+            pending_user: str | None = None
+            for msg in history:
+                if msg.get("role") == "user":
+                    pending_user = msg.get("content", "")
+                elif msg.get("role") == "assistant" and pending_user is not None:
+                    tuple_history.append((pending_user, msg.get("content", "")))
+                    pending_user = None
+        else:
+            tuple_history = [tuple(pair) for pair in history]
+    payload = {"question": message, "history": tuple_history, "k": 3}
     with httpx.Client(timeout=TIMEOUT) as client:
         resp = client.post(f"{BACKEND_URL}/chat", json=payload)
     if resp.status_code != 200:
@@ -67,7 +80,6 @@ def build_ui() -> gr.Blocks:
             with gr.Column(scale=2):
                 gr.ChatInterface(
                     fn=chat_fn,
-                    type="tuples",
                     examples=[
                         "What is this document about?",
                         "මෙම ලේඛනය ගැන සාරාංශයක් දෙන්න.",

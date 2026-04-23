@@ -16,11 +16,15 @@ def _stub_embedder(monkeypatch: pytest.MonkeyPatch) -> None:
 
     class Fake:
         def encode(self, texts, **_kw):
-            # Deterministic: hash-based unit vectors of dim 4.
-            rng = np.random.default_rng([hash(t) & 0xFFFFFFFF for t in texts])
-            v = rng.standard_normal((len(texts), 4)).astype(np.float32)
-            v /= np.linalg.norm(v, axis=1, keepdims=True) + 1e-9
-            return v
+            # Deterministic per-item: same text always produces the same
+            # unit vector, regardless of batch composition.
+            vectors = np.empty((len(texts), 4), dtype=np.float32)
+            for i, t in enumerate(texts):
+                rng = np.random.default_rng(hash(t) & 0xFFFFFFFF)
+                v = rng.standard_normal(4).astype(np.float32)
+                v /= np.linalg.norm(v) + 1e-9
+                vectors[i] = v
+            return vectors
 
     embedder.get_model.cache_clear()
     monkeypatch.setattr(embedder, "SentenceTransformer", lambda _n: Fake())

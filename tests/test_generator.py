@@ -55,15 +55,30 @@ def test_build_prompt_handles_empty_context() -> None:
     assert "(no context retrieved)" in prompt
 
 
-def test_generate_answer_strips_echoed_prompt(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_generate_answer_calls_inference_api(monkeypatch: pytest.MonkeyPatch) -> None:
     captured: dict = {}
 
-    def fake_pipeline(prompt: str, **_kw):
-        captured["prompt"] = prompt
-        return [{"generated_text": prompt + "42 is the answer."}]
+    class FakeMessage:
+        content = "42 is the answer."
 
-    monkeypatch.setattr(generator, "_load_pipeline", lambda _n: fake_pipeline)
+    class FakeChoice:
+        message = FakeMessage()
+
+    class FakeCompletion:
+        choices = [FakeChoice()]
+
+    class FakeClient:
+        def chat_completion(self, messages, **kwargs):
+            captured["messages"] = messages
+            captured["kwargs"] = kwargs
+            return FakeCompletion()
+
+    generator._get_client.cache_clear()
+    monkeypatch.setattr(generator, "_get_client", lambda _n, _p=None: FakeClient())
 
     out = generator.generate_answer("What is it?", ["context"], model_name="fake")
     assert out == "42 is the answer."
-    assert "Question: What is it?" in captured["prompt"]
+    # System + user message structure
+    roles = [m["role"] for m in captured["messages"]]
+    assert roles == ["system", "user"]
+    assert "Question: What is it?" in captured["messages"][1]["content"]

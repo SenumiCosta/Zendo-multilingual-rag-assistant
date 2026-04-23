@@ -123,3 +123,47 @@ Captured research for a follow-up plan. Do not start these during Days 1-4.
 **Research tracks:**
 - On-device / edge SLM fallback (Gemma 3n / Qwen3.5-0.8B) for offline use.
 - GraphRAG (Microsoft impl / LazyGraphRAG) for Sri Lankan entity-relationship corpora.
+
+---
+
+## v0.2 Long-Form Roadmap — Adaptive Multimodal RAG (8 weeks, post-v0.1)
+
+**Tagline:** "Adaptive Multimodal RAG for Sinhala-English Document Q&A — featuring hybrid retrieval, agentic reasoning, and on-device fallback."
+
+**Target architecture:**
+```
+User Query (Sinhala / English / Image)
+  → Query Router (Adaptive RAG)
+      ├─ Simple        → Vector RAG (fast)
+      ├─ Complex       → Agentic RAG (LangGraph loops)
+      └─ Relationship  → GraphRAG
+  → Hybrid Retrieval (Dense BGE-M3 + BM25)
+  → Reranker (Qwen3-Reranker)
+  → LLM (Cloud Gemma/LLaMA OR Edge SLM)
+  → Grounded answer + citations
+```
+
+**Tech stack deltas from v0.1:**
+| Layer | v0.1 (current) | v0.2 (target) |
+|---|---|---|
+| Embeddings | paraphrase-multilingual-MiniLM | BGE-M3 + Gemini Embedding 2 (multimodal) |
+| Retrieval | Dense only (FAISS IP) | Hybrid (dense + BM25) + Qwen3-Reranker |
+| Orchestration | Linear pipeline | LangGraph agentic loops |
+| LLM | Cloud Gemma/LLaMA | Cloud + Edge (Gemma 3n / Qwen3.5-0.8B) fallback |
+| Eval | Ad-hoc | RAGAS (faithfulness, answer_relevancy, context_precision) |
+
+**Phased build:**
+- **Phase 1 (Weeks 1-2)** — Foundation upgrade: swap to BGE-M3, add BM25 + hybrid retrieval.
+- **Phase 2 (Weeks 3-4)** — Multimodal: Gemini Embedding 2, image-in-PDF extraction, Qwen reranker.
+- **Phase 3 (Weeks 5-6)** — Adaptive intelligence: query router + LangGraph agentic flow (plan → retrieve → critique → re-retrieve).
+- **Phase 4 (Week 7)** — Edge mode: on-device Gemma 3n / Qwen3.5-0.8B fallback for offline use.
+- **Phase 5 (Week 8)** — Polish: RAGAS evaluation dashboard, demo video, deployment.
+
+**Key differentiators vs "another RAG chatbot":**
+1. Multimodal Sinhala ↔ English cross-modal search (Sinhala query → English doc image match).
+2. Adaptive query routing — one system, three retrieval strategies.
+3. Agentic reasoning loops (not linear retrieve→generate).
+4. Edge fallback for unreliable-internet contexts (rural Sri Lanka).
+5. Production eval with RAGAS, not "it works!" demos.
+
+**Scope discipline:** Do NOT start any of this until v0.1 is shipped, tagged, and documented. This section is a backlog, not a todo list.

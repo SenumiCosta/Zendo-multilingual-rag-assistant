@@ -8,7 +8,7 @@ Sinhala/English text.
 
 from __future__ import annotations
 
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Defaults tuned for paraphrase-multilingual-MiniLM-L12-v2 (max 128 tokens).
 # 500 chars ~ 100-150 tokens, leaving headroom for the model.
