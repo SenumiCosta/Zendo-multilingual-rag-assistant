@@ -105,24 +105,41 @@ Reuse libraries already pinned in `requirements.txt`.
 
 ---
 
-## v0.2 Backlog (deferred — ship v0.1 first)
+## v0.2 — SHIPPED (2026-04-24)
 
-Captured research for a follow-up plan. Do not start these during Days 1-4.
+Upgrades delivered on top of v0.1:
 
-**Cheap wins (candidates for a v0.1.1):**
-- Swap embedder to BGE-M3 (`BAAI/bge-m3`) — better Sinhala, 8K context.
-- RAGAS for structured eval (faithfulness / answer_relevancy / context_precision).
-- HyDE: LLM generates a hypothetical answer, embed that instead of the raw Sinhala query.
+**Cheap wins (all done):**
+- ✅ BGE-M3 embeddings (1024-dim, 8K ctx, stronger Sinhala) — `backend/rag/embedder.py`.
+- ✅ RAGAS evaluation script — `scripts/ragas_eval.py`.
+- ✅ HyDE query expansion — `backend/rag/hyde.py`.
 
-**Bigger additions:**
-- Hybrid retrieval (dense + BM25) + cross-encoder reranker (Qwen3-Reranker).
-- Adaptive RAG: query router choosing vector / agentic / graph pipelines.
-- Agentic RAG with LangGraph (planner → retriever loop → critic).
-- Multimodal via Gemini Embedding 2 (image + PDF + audio in one space).
+**Bigger additions (all done):**
+- ✅ Hybrid retrieval (dense FAISS + BM25 via RRF) — `backend/rag/hybrid.py`.
+- ✅ Cross-encoder reranker (BGE-reranker-v2-m3) — `backend/rag/reranker.py`.
+- ✅ Adaptive query router (rule-based) — `backend/rag/router.py`.
+- ✅ Pipeline rewired to use router → HyDE → hybrid → rerank → LLM.
+- ✅ API `/chat` returns `meta` (route, per-stage latencies).
 
-**Research tracks:**
-- On-device / edge SLM fallback (Gemma 3n / Qwen3.5-0.8B) for offline use.
-- GraphRAG (Microsoft impl / LazyGraphRAG) for Sri Lankan entity-relationship corpora.
+**Agentic (done):**
+- ✅ Agentic RAG with LangGraph — `backend/rag/agentic.py` (plan → retrieve →
+  critic → re-plan loop, max 2 iterations, opt-in via `AGENTIC_MODE=1`).
+
+**Multimodal (done — opt-in via `GOOGLE_API_KEY`):**
+- ✅ PDF page rendering via `pypdfium2` (150 DPI PNGs).
+- ✅ Gemini Embedding 2 client (text + image, 3072-dim, normalized).
+- ✅ Persisted parallel image index (`image_vectors.npy` + `image_manifest.json`).
+- ✅ `/search-image-text` and `/search-image-image` endpoints.
+- ✅ "Image search" tab in the Gradio UI, conditionally enabled by
+  `/capabilities`.
+
+**Deferred to v0.3 (stubs in place):**
+- ⏳ GraphRAG — `backend/rag/graph.py` stub. Needs Neo4j + entity extraction.
+- ⏳ On-device / edge SLM — `backend/rag/edge.py` stub. Deployment problem,
+  not a pure code task.
+
+Each stub module raises `NotImplementedError` and documents the intended
+design so it can be built without re-architecting.
 
 ---
 

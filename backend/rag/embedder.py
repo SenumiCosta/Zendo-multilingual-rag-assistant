@@ -13,7 +13,10 @@ from functools import lru_cache
 import numpy as np
 from sentence_transformers import SentenceTransformer
 
-DEFAULT_MODEL = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
+# BGE-M3 — 1024-dim, 8K context, strong multilingual coverage including
+# Sinhala. Loaded via sentence-transformers (supports dense embeddings
+# directly; sparse/multi-vector outputs require FlagEmbedding).
+DEFAULT_MODEL = "BAAI/bge-m3"
 
 
 @lru_cache(maxsize=1)

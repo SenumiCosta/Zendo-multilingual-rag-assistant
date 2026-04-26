@@ -10,3 +10,14 @@ langchain-community
 gradio
 httpx
 python-dotenv
+# Hybrid retrieval
+rank-bm25
+# Reranker (cross-encoder)
+# (sentence-transformers already provides CrossEncoder)
+# Evaluation
+ragas
+datasets
+# Multimodal — PDF image extraction + Gemini Embedding 2
+pypdfium2
+pillow
+google-generativeai

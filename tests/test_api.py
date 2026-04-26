@@ -26,6 +26,25 @@ def test_health(client: TestClient) -> None:
     assert resp.json() == {"status": "ok"}
 
 
+def test_capabilities_reports_multimodal_state(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes.multimodal, "is_available", lambda: False)
+    resp = client.get("/capabilities")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["multimodal"] is False
+    assert body["agentic"] is True
+
+
+def test_search_image_text_503_when_unavailable(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes.multimodal, "is_available", lambda: False)
+    resp = client.post("/search-image-text", data={"query": "hello"})
+    assert resp.status_code == 503
+
+
 def test_upload_rejects_non_pdf(client: TestClient) -> None:
     resp = client.post(
         "/upload",
@@ -47,7 +66,10 @@ def test_upload_happy_path(
         files={"file": ("book.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
     )
     assert resp.status_code == 200
-    assert resp.json() == {"filename": "book.pdf", "chunks": 7}
+    body = resp.json()
+    assert body["filename"] == "book.pdf"
+    assert body["chunks"] == 7
+    assert body["images_indexed"] == 0
 
 
 def test_chat_without_index_returns_409(
@@ -64,8 +86,12 @@ def test_chat_without_index_returns_409(
 def test_chat_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
     from backend.rag.retriever import RetrievalResult
 
-    def fake_pipeline(question, index_dir, k=3, history=None):
-        return "42", [RetrievalResult(text="ctx", score=0.9, index=0)]
+    def fake_pipeline(question, index_dir, **_kw):
+        return (
+            "42",
+            [RetrievalResult(text="ctx", score=0.9, index=0)],
+            {"route": "simple", "total_ms": 12},
+        )
 
     monkeypatch.setattr(routes.pipeline, "rag_pipeline", fake_pipeline)
 
@@ -74,3 +100,4 @@ def test_chat_happy_path(client: TestClient, monkeypatch: pytest.MonkeyPatch) ->
     body = resp.json()
     assert body["answer"] == "42"
     assert body["sources"] == [{"text": "ctx", "score": 0.9, "index": 0}]
+    assert body["meta"]["route"] == "simple"
