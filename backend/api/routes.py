@@ -168,11 +168,18 @@ async def search_image_by_image(
 
 @router.get("/image")
 def get_indexed_image(path: str) -> FileResponse:
-    """Serve a rendered page image (path is relative to data/vector_db/)."""
+    """Serve a rendered page image.
+
+    `path` is relative to data/vector_db/ and MUST resolve to a file under
+    the images/ subdirectory with an image suffix. Anything else (FAISS
+    index, manifest JSON, files outside the dir) is rejected.
+    """
+    images_root = (INDEX_DIR / multimodal.IMAGE_DIR_NAME).resolve()
     safe = (INDEX_DIR / path).resolve()
-    # Prevent path traversal — must stay under INDEX_DIR.
-    if not str(safe).startswith(str(INDEX_DIR.resolve())):
-        raise HTTPException(400, "invalid path")
+    if not str(safe).startswith(str(images_root)):
+        raise HTTPException(400, "path must be inside images/")
+    if safe.suffix.lower() not in {".png", ".jpg", ".jpeg", ".webp"}:
+        raise HTTPException(400, "only image files are served")
     if not safe.is_file():
         raise HTTPException(404, "image not found")
     return FileResponse(safe)

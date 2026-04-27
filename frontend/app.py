@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from urllib.parse import quote
 
 import gradio as gr
 import httpx
@@ -93,7 +94,10 @@ def _hits_to_gallery(hits: list[dict]):
     if not hits:
         return None, "No matches."
     items = [
-        (f"{BACKEND_URL}/image?path={h['path']}", f"{h['pdf']} p.{h['page']} ({h['score']:.2f})")
+        (
+            f"{BACKEND_URL}/image?path={quote(h['path'], safe='')}",
+            f"{h['pdf']} p.{h['page']} ({h['score']:.2f})",
+        )
         for h in hits
     ]
     caption = "\n".join(f"- {h['pdf']} page {h['page']} — score {h['score']:.3f}" for h in hits)

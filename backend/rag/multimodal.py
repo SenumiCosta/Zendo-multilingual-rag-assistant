@@ -101,14 +101,16 @@ def render_pdf_pages(pdf_path: str | Path, out_dir: str | Path, dpi: int = PAGE_
     pdf = pdfium.PdfDocument(str(pdf_path))
     scale = dpi / 72  # PDFium uses 72 DPI as the base
     written: list[Path] = []
-    for i in range(len(pdf)):
-        page = pdf[i]
-        bitmap = page.render(scale=scale)
-        pil = bitmap.to_pil()
-        out = target_dir / f"page_{i + 1:03d}.png"
-        pil.save(out, format="PNG", optimize=True)
-        written.append(out)
-    pdf.close()
+    try:
+        for i in range(len(pdf)):
+            page = pdf[i]
+            bitmap = page.render(scale=scale)
+            pil = bitmap.to_pil()
+            out = target_dir / f"page_{i + 1:03d}.png"
+            pil.save(out, format="PNG", optimize=True)
+            written.append(out)
+    finally:
+        pdf.close()
     log.info("rendered %d pages from %s", len(written), pdf_path.name)
     return written
 
@@ -186,7 +188,13 @@ def ingest_pdf_images(pdf_path: str | Path, index_dir: str | Path) -> int:
     new_vectors = embed_image(pages)
 
     manifest_entries = [
-        {"path": str(p.relative_to(index_dir)), "page": i + 1, "pdf": pdf_path.name}
+        {
+            # Always store POSIX-style relative paths so URLs are portable
+            # across Windows / *nix.
+            "path": p.relative_to(index_dir).as_posix(),
+            "page": i + 1,
+            "pdf": pdf_path.name,
+        }
         for i, p in enumerate(pages)
     ]
 

@@ -45,6 +45,49 @@ def test_search_image_text_503_when_unavailable(
     assert resp.status_code == 503
 
 
+def test_image_endpoint_blocks_non_image_files(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    """Regression: /image must not serve index.faiss or chunks.json."""
+    fake_index = tmp_path
+    (fake_index / "images").mkdir()
+    (fake_index / "index.faiss").write_bytes(b"sensitive")
+    (fake_index / "chunks.json").write_text("[]")
+    monkeypatch.setattr(routes, "INDEX_DIR", fake_index)
+
+    resp = client.get("/image", params={"path": "index.faiss"})
+    assert resp.status_code == 400
+    resp = client.get("/image", params={"path": "chunks.json"})
+    assert resp.status_code == 400
+
+
+def test_image_endpoint_blocks_path_traversal(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    fake_index = tmp_path / "index"
+    (fake_index / "images").mkdir(parents=True)
+    monkeypatch.setattr(routes, "INDEX_DIR", fake_index)
+
+    # Try to escape with ..
+    resp = client.get("/image", params={"path": "../../../etc/passwd"})
+    assert resp.status_code == 400
+
+
+def test_image_endpoint_serves_valid_image(
+    client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
+) -> None:
+    fake_index = tmp_path / "index"
+    images = fake_index / "images" / "doc"
+    images.mkdir(parents=True)
+    target = images / "page_001.png"
+    target.write_bytes(b"\x89PNG\r\n\x1a\nfakeimage")
+    monkeypatch.setattr(routes, "INDEX_DIR", fake_index)
+
+    resp = client.get("/image", params={"path": "images/doc/page_001.png"})
+    assert resp.status_code == 200
+    assert resp.content == b"\x89PNG\r\n\x1a\nfakeimage"
+
+
 def test_upload_rejects_non_pdf(client: TestClient) -> None:
     resp = client.post(
         "/upload",

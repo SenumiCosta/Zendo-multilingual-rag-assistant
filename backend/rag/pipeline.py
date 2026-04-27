@@ -41,23 +41,61 @@ def ingest_pdf(
     chunk_size: int = chunker.DEFAULT_CHUNK_SIZE,
     chunk_overlap: int = chunker.DEFAULT_CHUNK_OVERLAP,
 ) -> int:
-    """Load PDF → chunk → embed → build hybrid index → persist."""
+    """Load PDF → chunk → embed → APPEND to hybrid index → persist.
+
+    If an index already exists in `index_dir`, the new chunks are appended
+    so multiple PDFs accumulate in one searchable corpus. Returns the
+    number of chunks added by this call.
+    """
+    import numpy as np
+
     t0 = time.perf_counter()
     text = loader.load_pdf(pdf_path)
     log.info("loaded pdf %s: %d chars", pdf_path, len(text))
 
-    chunks = chunker.chunk_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
-    if not chunks:
+    new_chunks = chunker.chunk_text(text, chunk_size=chunk_size, chunk_overlap=chunk_overlap)
+    if not new_chunks:
         raise ValueError(f"No chunks produced from {pdf_path}")
 
-    vectors = embedder.embed(chunks)
-    idx = hybrid.build_hybrid_index(chunks, vectors)
+    new_vectors = embedder.embed(new_chunks)
+
+    # If an index already exists, merge into it; otherwise build fresh.
+    try:
+        existing = hybrid.load_hybrid_index(index_dir)
+        merged_chunks = existing.chunks + new_chunks
+        # Reconstruct dense vectors by reindexing — FAISS doesn't expose
+        # the underlying matrix from IndexFlatIP cheaply, so we re-embed
+        # only the new ones and rebuild the index from (existing + new).
+        existing_vectors = _faiss_to_matrix(existing.faiss)
+        if existing_vectors.shape[1] != new_vectors.shape[1]:
+            raise ValueError(
+                f"Embedding dim mismatch: existing index is {existing_vectors.shape[1]}-dim, "
+                f"new vectors are {new_vectors.shape[1]}-dim. "
+                "Clear data/vector_db/ and re-index from scratch."
+            )
+        merged_vectors = np.concatenate([existing_vectors, new_vectors], axis=0)
+        idx = hybrid.build_hybrid_index(merged_chunks, merged_vectors)
+        log.info("appending to existing index (%d → %d chunks)", len(existing.chunks), len(merged_chunks))
+    except FileNotFoundError:
+        idx = hybrid.build_hybrid_index(new_chunks, new_vectors)
+        log.info("created new index (%d chunks)", len(new_chunks))
+
     hybrid.save_hybrid_index(idx, index_dir)
     log.info(
-        "indexed %s: %d chunks in %.2fs (dense+BM25)",
-        pdf_path, len(chunks), time.perf_counter() - t0,
+        "indexed %s: +%d chunks in %.2fs (dense+BM25)",
+        pdf_path, len(new_chunks), time.perf_counter() - t0,
     )
-    return len(chunks)
+    return len(new_chunks)
+
+
+def _faiss_to_matrix(index):
+    """Reconstruct the full embedding matrix from a FAISS index."""
+    import numpy as np
+
+    n = index.ntotal
+    if n == 0:
+        return np.empty((0, index.d), dtype=np.float32)
+    return index.reconstruct_n(0, n).astype(np.float32)
 
 
 def _cap_context(results: list[RetrievalResult], max_chars: int) -> list[str]:
