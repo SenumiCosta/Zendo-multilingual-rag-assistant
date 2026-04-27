@@ -185,6 +185,28 @@ def get_indexed_image(path: str) -> FileResponse:
     return FileResponse(safe)
 
 
+@router.post("/reset-index")
+def reset_index() -> dict:
+    """Wipe the index files. Useful when switching embedding models or
+    starting fresh. Leaves rendered page PNGs on disk; they're orphaned
+    after this call but harmless.
+    """
+    removed: list[str] = []
+    for name in [
+        "index.faiss",
+        "chunks.json",
+        "bm25_corpus.json",
+        "image_vectors.npy",
+        "image_manifest.json",
+    ]:
+        target = INDEX_DIR / name
+        if target.exists():
+            target.unlink()
+            removed.append(name)
+    log.info("reset-index removed %d files", len(removed))
+    return {"removed": removed}
+
+
 @router.post("/chat", response_model=ChatResponse)
 def chat(req: ChatRequest) -> ChatResponse:
     try:

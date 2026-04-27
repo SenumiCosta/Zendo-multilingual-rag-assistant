@@ -45,6 +45,60 @@ def test_search_image_text_503_when_unavailable(
     assert resp.status_code == 503
 
 
+def test_image_endpoint_rejects_outside_paths(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Path-traversal must not be able to read files outside images/."""
+    monkeypatch.setattr(routes, "INDEX_DIR", tmp_path)
+    (tmp_path / "secret.txt").write_text("oops")
+    resp = client.get("/image", params={"path": "secret.txt"})
+    assert resp.status_code == 400
+
+
+def test_image_endpoint_rejects_traversal(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "INDEX_DIR", tmp_path)
+    resp = client.get("/image", params={"path": "../../../etc/passwd"})
+    assert resp.status_code == 400
+
+
+def test_image_endpoint_rejects_non_image_extension(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "INDEX_DIR", tmp_path)
+    images = tmp_path / "images"
+    images.mkdir()
+    (images / "manifest.json").write_text("{}")
+    resp = client.get("/image", params={"path": "images/manifest.json"})
+    assert resp.status_code == 400
+
+
+def test_image_endpoint_serves_valid_png(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "INDEX_DIR", tmp_path)
+    images = tmp_path / "images" / "doc"
+    images.mkdir(parents=True)
+    (images / "page_001.png").write_bytes(b"\x89PNG\r\n\x1a\n")
+    resp = client.get("/image", params={"path": "images/doc/page_001.png"})
+    assert resp.status_code == 200
+
+
+def test_reset_index_removes_files(
+    client: TestClient, tmp_path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(routes, "INDEX_DIR", tmp_path)
+    (tmp_path / "index.faiss").write_bytes(b"x")
+    (tmp_path / "chunks.json").write_text("[]")
+    resp = client.post("/reset-index")
+    assert resp.status_code == 200
+    removed = resp.json()["removed"]
+    assert "index.faiss" in removed
+    assert "chunks.json" in removed
+    assert not (tmp_path / "index.faiss").exists()
+
+
 def test_image_endpoint_blocks_non_image_files(
     client: TestClient, monkeypatch: pytest.MonkeyPatch, tmp_path
 ) -> None:

@@ -90,6 +90,18 @@ def search_image_by_image(image_path):
     return _hits_to_gallery(hits)
 
 
+def reset_index() -> str:
+    try:
+        with httpx.Client(timeout=httpx.Timeout(10.0)) as client:
+            resp = client.post(f"{BACKEND_URL}/reset-index")
+    except httpx.HTTPError as exc:
+        return f"Error: {exc}"
+    if resp.status_code != 200:
+        return f"Error {resp.status_code}: {resp.text}"
+    removed = resp.json().get("removed", [])
+    return f"Cleared index. Removed: {', '.join(removed) if removed else '(nothing to remove)'}."
+
+
 def _hits_to_gallery(hits: list[dict]):
     if not hits:
         return None, "No matches."
@@ -187,6 +199,8 @@ def build_ui() -> gr.Blocks:
                         inputs=[file_in, multimodal_chk],
                         outputs=upload_status,
                     )
+                    reset_btn = gr.Button("Reset index (clear all PDFs)", variant="secondary")
+                    reset_btn.click(reset_index, outputs=upload_status)
                 with gr.Column(scale=2):
                     gr.ChatInterface(
                         fn=chat_fn,
